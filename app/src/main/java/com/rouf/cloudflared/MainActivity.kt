@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ArrowCircleDown
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
@@ -110,6 +111,10 @@ fun CloudflaredApp(prefs: AppPreferences, onStartService: () -> Unit, onStopServ
     var showInstructions by remember { mutableStateOf(false) }
     var token by remember { mutableStateOf(prefs.token) }
     val tokenInfo = remember(token) { TunnelTokenParser.parseTokenInfo(token) }
+
+    var quickMode by remember { mutableStateOf(prefs.quickMode) }
+    var localUrl by remember { mutableStateOf(prefs.localUrl) }
+    val publicUrl by CloudflaredService.publicUrl.collectAsState()
 
     var autoStart by remember { mutableStateOf(prefs.autoStart) }
     var startDelay by remember { mutableStateOf(prefs.startDelaySeconds.toString()) }
@@ -362,11 +367,14 @@ fun CloudflaredApp(prefs: AppPreferences, onStartService: () -> Unit, onStopServ
                 if (showInstructions) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "1. Open one.dash.cloudflare.com > Networks > Tunnels\n" +
-                               "2. Click 'Add a tunnel', choose Cloudflared, and name it\n" +
-                               "3. Copy the installation command from any environment (Windows, Linux, or Docker)\n" +
-                               "4. Paste it directly below - the token will be extracted automatically!\n" +
-                               "5. Tap 'Connect Tunnel' and map your public hostname to localhost:8080",
+                        text = "【快捷模式（默认）】\n" +
+                               "1. 在下方填写手机上的本地 HTTP 地址，例如 http://127.0.0.1:8080\n" +
+                               "2. 点『启动隧道』，等待出现 https://xxx.trycloudflare.com\n" +
+                               "3. 复制该地址即可从公网访问，无需 Cloudflare 账号\n\n" +
+                               "【固定域名模式】\n" +
+                               "1. 关闭『快捷模式』开关\n" +
+                               "2. 在 one.dash.cloudflare.com > Networks > Tunnels 创建隧道\n" +
+                               "3. 复制安装命令或 token 粘贴到下方，即可绑定固定域名",
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -377,6 +385,88 @@ fun CloudflaredApp(prefs: AppPreferences, onStartService: () -> Unit, onStopServ
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("快捷模式（无需 Cloudflare 账号）", fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "生成 trycloudflare.com 临时公网地址",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = quickMode,
+                onCheckedChange = {
+                    quickMode = it
+                    prefs.quickMode = it
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (quickMode) {
+            OutlinedTextField(
+                value = localUrl,
+                onValueChange = {
+                    localUrl = it
+                    prefs.localUrl = it
+                },
+                label = { Text("本地 HTTP 地址") },
+                placeholder = { Text("http://127.0.0.1:8080") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (publicUrl.isNotBlank()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "公网地址",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = publicUrl,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4CAF50)
+                            )
+                        }
+                        IconButton(onClick = {
+                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(publicUrl))
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy URL"
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (!quickMode) {
         // Smart Tunnel Token Input
         OutlinedTextField(
             value = token,
@@ -469,6 +559,8 @@ fun CloudflaredApp(prefs: AppPreferences, onStartService: () -> Unit, onStopServ
             }
         }
 
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(
@@ -526,7 +618,7 @@ fun CloudflaredApp(prefs: AppPreferences, onStartService: () -> Unit, onStopServ
             )
         ) {
             Text(
-                text = if (isConnected) "Stop Service" else "Connect Tunnel",
+                text = if (isConnected) "停止隧道" else "启动隧道",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
