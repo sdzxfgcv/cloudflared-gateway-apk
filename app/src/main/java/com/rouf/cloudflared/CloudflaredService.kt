@@ -175,7 +175,7 @@ class CloudflaredService : Service() {
 
                         // Quick Tunnel prints the public URL in its logs
                         if (quickMode && !line.isNullOrBlank()) {
-                            val match = QUICK_URL_REGEX.find(line)?.value
+                            val match = QUICK_URL_REGEX.find(line ?: "")?.value
                             if (match != null && match != _publicUrl.value) {
                                 _publicUrl.value = match
                                 prefs.publicUrl = match
