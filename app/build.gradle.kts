@@ -10,9 +10,9 @@ android {
     defaultConfig {
         applicationId = "com.rouf.cloudflared"
         minSdk = 21
-        targetSdk = 28
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 34
+        versionCode = 2
+        versionName = "1.1"
         
         vectorDrawables {
             useSupportLibrary = true
@@ -54,7 +54,7 @@ android {
     applicationVariants.all {
         outputs.all {
             val output = this as com.android.build.gradle.internal.api.ApkVariantOutputImpl
-            output.outputFileName = "cloudflared-android.apk"
+            output.outputFileName = "cloudflared-gateway.apk"
         }
     }
 }
