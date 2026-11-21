@@ -38,6 +38,11 @@ class CloudflaredService : Service() {
 
         private val _status = MutableStateFlow("Disconnected")
         val status = _status.asStateFlow()
+
+        private val _publicUrl = MutableStateFlow("")
+        val publicUrl = _publicUrl.asStateFlow()
+
+        private val QUICK_URL_REGEX = Regex("https://[A-Za-z0-9-]+\\.trycloudflare\\.com")
     }
 
     override fun onCreate() {
@@ -105,15 +110,18 @@ class CloudflaredService : Service() {
                 }
 
                 val prefs = AppPreferences(this@CloudflaredService)
+                val quickMode = prefs.quickMode
                 val token = prefs.token.trim()
+                val localUrl = prefs.localUrl.trim().ifBlank { "http://127.0.0.1:8080" }
 
-                if (token.isBlank()) {
+                if (!quickMode && token.isBlank()) {
                     _status.value = "Error: Token is empty"
                     isRunning = false
                     wakeLock?.release()
                     return@launch
                 }
 
+                _publicUrl.value = ""
                 _status.value = "Connecting..."
 
                 val storageContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -129,7 +137,14 @@ class CloudflaredService : Service() {
                 val binaryPath = UpdateManager.getExecutablePath(storageContext)
                 Log.d("CloudflaredDaemon", "Starting binary: $binaryPath")
                 
-                val command = arrayOf(binaryPath, "tunnel", "--no-autoupdate", "--edge-ip-version", "4", "--protocol", "http2", "run", "--token", token)
+                val command = if (quickMode) {
+                    arrayOf(binaryPath, "tunnel", "--no-autoupdate", "--edge-ip-version", "4",
+                        "--protocol", "http2", "--url", localUrl)
+                } else {
+                    arrayOf(binaryPath, "tunnel", "--no-autoupdate", "--edge-ip-version", "4",
+                        "--protocol", "http2", "run", "--token", token)
+                }
+                Log.d("CloudflaredDaemon", "Command: ${command.joinToString(" ")}")
                 val processBuilder = ProcessBuilder(*command)
                 val env = processBuilder.environment()
                 env["GODEBUG"] = "netdns=go"
@@ -146,12 +161,27 @@ class CloudflaredService : Service() {
                         if (line?.isNotBlank() == true) {
                             lastLine = line!!
                         }
-                        if (line?.contains("Registered tunnel connection") == true) {
+                        if (line?.contains("Registered tunnel connection") == true ||
+                            line?.contains("Connection registered") == true) {
                             _status.value = "Connected"
                             // Ensure we have a wakelock while connected
                             if (wakeLock?.isHeld == false) wakeLock?.acquire()
+                            if (_publicUrl.value.isNotBlank()) {
+                                prefs.publicUrl = _publicUrl.value
+                            }
                         } else if (line?.contains("failed to connect") == true) {
                             _status.value = "Connection Failed"
+                        }
+
+                        // Quick Tunnel prints the public URL in its logs
+                        if (quickMode && !line.isNullOrBlank()) {
+                            val match = QUICK_URL_REGEX.find(line)?.value
+                            if (match != null && match != _publicUrl.value) {
+                                _publicUrl.value = match
+                                prefs.publicUrl = match
+                                _status.value = "Connected"
+                                if (wakeLock?.isHeld == false) wakeLock?.acquire()
+                            }
                         }
                     }
                 }
