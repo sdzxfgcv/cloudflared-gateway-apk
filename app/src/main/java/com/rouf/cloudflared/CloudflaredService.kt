@@ -158,6 +158,31 @@ class CloudflaredService : Service() {
                 val processBuilder = ProcessBuilder(*command)
                 val env = processBuilder.environment()
                 env["GODEBUG"] = "netdns=go"
+
+                // The bundled Go binary is built for linux, so it does not read
+                // Android's /system/etc/security/cacerts by itself. Build a PEM
+                // bundle from the bundled Mozilla roots + system roots and point
+                // Go's x509 at it, otherwise TLS fails with "unknown authority".
+                val caFile = File(storageContext.filesDir, "ca-bundle.pem")
+                if (!caFile.exists() || caFile.length() < 1000) {
+                    val bundled = try {
+                        assets.open("cacert.pem").bufferedReader().use { it.readText() }
+                    } catch (e: Exception) {
+                        Log.w("CloudflaredDaemon", "Cannot read bundled CA: ${e.message}")
+                        ""
+                    }
+                    val sb = StringBuilder(bundled)
+                    try {
+                        File("/system/etc/security/cacerts").listFiles()?.forEach { f ->
+                            if (f.isFile) {
+                                try { sb.append(f.readText()).append('\n') } catch (_: Exception) {}
+                            }
+                        }
+                    } catch (_: Exception) {}
+                    caFile.writeText(sb.toString())
+                }
+                env["SSL_CERT_FILE"] = caFile.absolutePath
+
                 processBuilder.redirectInput(dnsFile)
                 processBuilder.redirectErrorStream(true)
                 
