@@ -34,4 +34,19 @@ class AppPreferences(context: Context) {
     var binaryVersion: String
         get() = prefs.getString("binaryVersion", "bundled") ?: "bundled"
         set(value) = prefs.edit().putString("binaryVersion", value).apply()
+
+    /** true = Quick Tunnel (trycloudflare.com, no Cloudflare account needed) */
+    var quickMode: Boolean
+        get() = prefs.getBoolean("quickMode", true)
+        set(value) = prefs.edit().putBoolean("quickMode", value).apply()
+
+    /** Local HTTP address to expose, e.g. http://127.0.0.1:8080 */
+    var localUrl: String
+        get() = prefs.getString("localUrl", "http://127.0.0.1:8080") ?: "http://127.0.0.1:8080"
+        set(value) = prefs.edit().putString("localUrl", value).apply()
+
+    /** Last public URL obtained from a quick tunnel */
+    var publicUrl: String
+        get() = prefs.getString("publicUrl", "") ?: ""
+        set(value) = prefs.edit().putString("publicUrl", value).apply()
 }
