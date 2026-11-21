@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,3 +35,18 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish APK to Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1
+          name: Cloudflared Gateway v1.1
+          body: |
+            本地 HTTP 网关 → 公网（cloudflared 快捷模式）
+            - 默认快捷模式：填本地地址即可生成 trycloudflare.com 临时公网域名
+            - 也支持 Cloudflare 固定域名 token 模式
+            - 仅 arm64-v8a / Android 5.0+
+          files: app/build/outputs/apk/release/cloudflared-gateway.apk
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
