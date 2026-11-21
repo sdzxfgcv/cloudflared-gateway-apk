@@ -39,8 +39,8 @@ jobs:
       - name: Publish APK to Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2
-          name: Cloudflared Gateway v1.2
+          tag_name: v1.3
+          name: Cloudflared Gateway v1.3
           body: |
             本地 HTTP 网关 → 公网（cloudflared 快捷模式）
             - 默认快捷模式：填本地地址即可生成 trycloudflare.com 临时公网域名
