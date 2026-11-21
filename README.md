@@ -1,236 +1,28 @@
-# Cloudflared for Android
-## Native Cloudflare Zero Trust Tunnel Client
+# Cloudflared Gateway APK（本地 HTTP 变公网）
 
-[![Android Version](https://img.shields.io/badge/Android-5.0%2B%20(API%2021%2B)-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
-[![Architecture](https://img.shields.io/badge/Architecture-ARM64--v8a-blue)](https://github.com/cloudflare/cloudflared)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Latest Release](https://img.shields.io/badge/Release-v1.2.0-0366d6.svg)](https://github.com/roufsweb/cloudflared-android/releases/tag/v1.2.0)
-[![Documentation & User Guide](https://img.shields.io/badge/User%20Guide-Online%20Documentation-orange.svg)](https://cloudflared-android.roufsweb.com/)
-[![Donate with Ethereum](https://img.shields.io/badge/Donate-Ethereum%20(ETH)-627EEA?logo=ethereum&logoColor=white)](#support--donations)
+基于 [roufsweb/cloudflared-android](https://github.com/roufsweb/cloudflared-android)（MIT）二次开发，内置 cloudflared 原生二进制，由 GitHub Actions 自动编译。
 
-A lightweight, high-performance native implementation of Cloudflare Tunnel (`cloudflared`) engineered specifically for Android. Expose local web applications, APIs, Termux environments, and home servers to the public internet using Cloudflare Zero Trust without requiring root permissions, dynamic DNS, or router port-forwarding.
+## 两种模式
 
-*Interactive step-by-step setup walkthrough and troubleshooting guide:* **[cloudflared-android.roufsweb.com](https://cloudflared-android.roufsweb.com/)**
+### 1. 快捷模式（默认，无需账号）
+- 打开 App，保持「快捷模式」开启。
+- 在「本地 HTTP 地址」填入要暴露的地址，例如 `http://127.0.0.1:8080`（也可以是局域网地址 `http://192.168.1.10:8080`）。
+- 点「启动隧道」，等待日志解析出 `https://xxxx.trycloudflare.com`。
+- 复制该地址即可从公网访问。地址在 App 重启后会变化（临时域名）。
 
----
+### 2. 固定域名模式（需要 Cloudflare 账号）
+- 关闭「快捷模式」开关。
+- 在 Cloudflare Zero Trust → Networks → Tunnels 创建隧道。
+- 复制安装命令或 token 粘贴到输入框，点「启动隧道」。
+- 在 Cloudflare 面板把域名的 DNS 记录指向该隧道。
 
-## Direct APK Download
+## 注意事项
+- 需要 Android 5.0+，仅支持 **arm64-v8a** 架构（绝大多数现代手机）。
+- 本地服务必须真的在监听对应端口；`127.0.0.1` 指的是**手机本机**。
+- 会把本地服务暴露到公网，请务必给服务本身加认证，不要暴露敏感后台。
+- 系统可能杀后台，建议关闭电池优化并保持通知权限。
 
-Ready-to-install application packages are published under [Releases](https://github.com/roufsweb/cloudflared-android/releases):
+## 构建
+Fork 后推送到 `main` 或在 Actions 页面手动触发 `Build Cloudflared Gateway APK`，产物在 Artifacts 中。
 
-| Package | Supported Architecture | Minimum Android Version | Direct Download |
-|:---|:---:|:---:|:---:|
-| **Cloudflared Android APK** | ARM64-v8a | Android 5.0+ (Lollipop through Android 15) | [Download Latest APK](https://github.com/roufsweb/cloudflared-android/releases/download/v1.2.0/cloudflared-non-rooted.apk) |
-
----
-
-## Application Interface
-
-<p align="center">
-  <img src="docs/app-ui.png" width="280" alt="Cloudflared for Android Application Interface" />
-</p>
-
----
-
-## Key Capabilities
-
-* **Standard Non-Root Execution:** Runs completely inside the standard unprivileged Android app sandbox. No superuser, Magisk, or custom ROMs required.
-* **Universal Token Parser:** Automatically extracts and validates Base64 tokens from any command copied from the Cloudflare dashboard (Windows `.exe`, Linux `sudo`, Docker, or raw token) with one-tap clipboard paste.
-* **Integrated Engine Updates:** Checks upstream Cloudflare releases and applies binary updates and kernel patches with a single tap in the app.
-* **In-App Usage Instructions:** Built-in collapsible guide detailing token creation, background battery whitelist steps, and public hostname routing.
-* **Kernel Stdin DNS Patching:** Overcomes Android's absence of `/etc/resolv.conf` by routing the Go runtime pure-Go resolver via `//proc/self/fd/0` with built-in upstream resolvers (1.1.1.1, 8.8.8.8).
-* **Direct Boot Compatibility:** Utilizes `LOCKED_BOOT_COMPLETED` broadcast receivers to resume tunnel connections automatically after a system reboot, even before first user unlock.
-* **Foreground Service Persistence:** Operates as an Android high-priority foreground service (`dataSync` type) with partial WakeLock management to withstand aggressive OEM task termination.
-* **Firewall & CGNAT Bypass:** Outbound encrypted connections over QUIC (port 7844) or HTTP/2 (port 443) bypass carrier-grade NAT and restrictive ISP firewalls.
-
----
-
-## Universal Token Input Support
-
-The application features a built-in token parser (`TunnelTokenParser`). When configuring a tunnel in the Cloudflare Zero Trust Dashboard, users can copy the full installation command provided under **any** operating system tab and paste it directly into the application. The parser strips executable names, sudo wrappers, CLI flags, quotes, and whitespace, isolating only the valid token payload:
-
-| Source Format | Example Input Copied from Dashboard | App Parsing Behavior |
-|:---|:---|:---|
-| **Windows Command** | `cloudflared.exe service install eyJhIjoi...` | Automatically strips `cloudflared.exe service install` and extracts token |
-| **Linux Command** | `sudo cloudflared service install eyJhIjoi...` | Automatically strips `sudo cloudflared service install` and extracts token |
-| **Docker Command** | `docker run cloudflare/cloudflared:latest tunnel --token eyJhIjoi...` | Automatically isolates `--token` parameter value and strips flags |
-| **PowerShell / Paths** | `.\cloudflared.exe service install "eyJhIjoi..."` | Cleans quotation marks, relative execution prefixes, and arguments |
-| **Raw Base64 Token** | `eyJhIjoiMzEyNDZl...` | Trims whitespace, line breaks, and extraneous characters |
-| **One-Tap Clipboard** | *(Tap the clipboard icon inside the input field)* | Fetches system clipboard and auto-parses contents directly |
-
-### Token Structure & Real-Time Validation
-Cloudflare Zero Trust tunnel tokens are Base64-encoded JSON objects containing account metadata:
-```json
-{
-  "a": "<account_id>",
-  "t": "<tunnel_id>",
-  "s": "<secret>"
-}
-```
-Upon paste or typing, the application instantly verifies the Base64 structure, parses the `a` and `t` keys, and displays a live validation badge with the detected **Tunnel ID** (`Valid Token • Tunnel: <id>...`) so you can be confident your token is valid before starting the connection.
-
----
-
-## Architecture
-
-Standard Go binaries fail on Android because Android's Bionic C library does not provide `/etc/resolv.conf`, causing DNS lookup failures. This wrapper solves that natively:
-
-```
-[Local Application / Termux] (e.g. localhost:8080)
-            |
-            v
-[Cloudflared Native Engine (libcloudflared.so)]
-            |
-            +--> DNS Redirection: Stdin Pipe -> //proc/self/fd/0 (1.1.1.1, 8.8.8.8)
-            |
-            v  (Outbound HTTPS / QUIC on Port 7844 / 443)
-[Cloudflare Edge Global Anycast Network]
-            |
-            v
-[Public Internet / Custom Domain] (e.g. https://service.yourdomain.com)
-```
-
-1. The compiled `cloudflared` binary is packaged as a native shared library (`libcloudflared.so`) within the APK.
-2. The Android service spawns the binary and pipes a generated resolver configuration directly into stdin.
-3. The patched engine parses nameservers via `//proc/self/fd/0`, establishing secure outbound connections to Cloudflare Edge.
-
----
-
-## Quick Setup
-
-### Step 1: Obtain a Tunnel Token
-1. Open the [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/).
-2. Navigate to **Networks** > **Tunnels** > **Add a tunnel**.
-3. Select **Cloudflared** and name your tunnel.
-4. Under **Install and run a connector**, copy the command provided under any OS tab (Windows, Linux, or Docker), or copy just the token string:
-   ```bash
-   cloudflared.exe service install eyJhIjoiMzEyNDZl...
-   # or
-   sudo cloudflared service install eyJhIjoiMzEyNDZl...
-   ```
-
-### Step 2: Connect the Android App
-1. Install and launch `cloudflared-android.apk`.
-2. Tap the **Paste from Clipboard** icon in the **Tunnel Token** field (or paste manually). The app extracts and validates the token automatically, displaying a green confirmation badge with your Tunnel ID.
-3. Tap **Connect Tunnel**.
-4. Grant notification permission and allow the battery optimization exemption when prompted.
-
-### Step 3: Route Public Traffic
-In the Cloudflare dashboard under the tunnel's **Public Hostnames** tab, assign a domain to your Android service:
-* **Public Hostname:** `mydevice.yourdomain.com`
-* **Service Type:** `HTTP`
-* **URL:** `localhost:8080` (or your target local port)
-
----
-
-## Common Applications
-
-### Exposing Termux Web Servers
-Host lightweight APIs, web servers, or static pages directly from Termux:
-```bash
-# Start a local web server in Termux
-python3 -m http.server 8080
-
-# In Cloudflare Dashboard: Route public hostname to localhost:8080
-```
-
-### Low-Power Homelab Node
-Convert a spare Android smartphone or tablet into an always-on, low-power server for:
-* Home Assistant dashboards and automations
-* Node-RED automation workflows
-* PocketBase or SQLite micro-backends
-* Webhook ingestion (Stripe, GitHub, Discord bots)
-
----
-
-## Background Reliability
-
-To ensure uninterrupted 24/7 tunnel execution across device manufacturers:
-
-| Vendor | Configuration Path | Setting |
-|:---|:---|:---|
-| **Google Pixel / AOSP** | Settings > Apps > Cloudflared > App battery usage | **Unrestricted** |
-| **Samsung (One UI)** | Settings > Battery > Background usage limits | Add to **Never sleeping apps** |
-| **Xiaomi (HyperOS / MIUI)** | App Info > Battery saver | **No restrictions** & enable **Autostart** |
-| **OnePlus / Oppo / Realme** | App Info > Battery usage | Enable **Allow background activity** & **Allow auto-launch** |
-
-For comprehensive guides, visit the online documentation at [cloudflared-android.roufsweb.com](https://cloudflared-android.roufsweb.com/).
-
----
-
-## Building from Source
-
-### Requirements
-* Android Studio (2023.2.1 Iguana or newer)
-* Android SDK 34
-* JDK 17
-
-### Build Command
-```bash
-./gradlew assembleRelease
-```
-
-The output package will be generated at:
-```text
-app/build/outputs/apk/release/cloudflared-android.apk
-```
-
----
-
-## Support & Donations
-
-If this project is helpful for your homelab, server, or mobile setup and you would like to support ongoing development and maintenance, voluntary donations are gratefully accepted. Development is fully open-source with no commercial obligations, tiers, or paywalls.
-
-<table>
-  <tr>
-    <td align="center" width="160px">
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=0x609e0AB78d5174F72fF8709564f8337DebEa5BD7&margin=5" width="140" height="140" alt="Ethereum QR Code" /><br />
-      <sub>Scan via Mobile Wallet</sub>
-    </td>
-    <td>
-      <b>Network:</b> Ethereum (ETH / ERC-20 Tokens)<br />
-      <b>Supported Wallets:</b> MetaMask, Trust Wallet, Coinbase Wallet, Ledger, Rainbow<br />
-      <b>Wallet Address:</b>
-      <br /><br />
-      <code>0x609e0AB78d5174F72fF8709564f8337DebEa5BD7</code>
-      <br /><br />
-      <a href="https://metamask.app.link/send/0x609e0AB78d5174F72fF8709564f8337DebEa5BD7">
-        <img src="https://img.shields.io/badge/MetaMask-Send%20ETH-E17726?logo=metamask&logoColor=white" alt="Open in MetaMask" />
-      </a>
-      &nbsp;
-      <a href="https://etherscan.io/address/0x609e0AB78d5174F72fF8709564f8337DebEa5BD7" target="_blank" rel="noopener">
-        <img src="https://img.shields.io/badge/Etherscan-View%20on%20Explorer-3B82F6?logo=ethereum&logoColor=white" alt="View on Etherscan" />
-      </a>
-    </td>
-  </tr>
-</table>
-
----
-
-## Contributors & Acknowledgments
-
-<table>
-  <tr>
-    <td align="center" width="160px">
-      <a href="https://github.com/roufsweb">
-        <img src="https://github.com/roufsweb.png?size=80" width="80" height="80" style="border-radius: 50%;" alt="Abdur Rouf"/><br />
-        <sub><b>Abdur Rouf</b></sub>
-      </a>
-      <br />
-      <sub>Creator & Maintainer</sub>
-    </td>
-    <td align="center" width="160px">
-      <a href="https://github.com/google-antigravity">
-        <img src="https://avatars.githubusercontent.com/u/242056456?v=4&s=80" width="80" height="80" style="border-radius: 50%;" alt="Google Antigravity"/><br />
-        <sub><b>Google Antigravity</b></sub>
-      </a>
-      <br />
-      <sub>Architecture & Engineering</sub>
-    </td>
-  </tr>
-</table>
-
----
-
-## Disclaimer
-Cloudflare, Cloudflare Tunnel, and Cloudflare Zero Trust are registered trademarks of Cloudflare, Inc. This project is an independent open-source client and is not affiliated with or endorsed by Cloudflare.
+原生二进制来源：MIT 项目内置 `libcloudflared.so`（已针对 Android 无 `/etc/resolv.conf` 的问题做 DNS stdin 补丁）。
