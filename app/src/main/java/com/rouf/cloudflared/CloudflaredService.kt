@@ -43,6 +43,16 @@ class CloudflaredService : Service() {
         val publicUrl = _publicUrl.asStateFlow()
 
         private val QUICK_URL_REGEX = Regex("https://[A-Za-z0-9-]+\\.trycloudflare\\.com")
+        private val RESERVED_QUICK_HOSTS = setOf(
+            "api.trycloudflare.com", "www.trycloudflare.com", "trycloudflare.com"
+        )
+
+        /** cloudflared logs mention https://api.trycloudflare.com for tunnel creation;
+         * that is Cloudflare's API, not the public tunnel URL. Ignore reserved hosts. */
+        private fun extractQuickUrl(text: String): String? =
+            QUICK_URL_REGEX.findAll(text)
+                .map { it.value }
+                .firstOrNull { it.substringAfter("https://") !in RESERVED_QUICK_HOSTS }
     }
 
     override fun onCreate() {
@@ -175,7 +185,7 @@ class CloudflaredService : Service() {
 
                         // Quick Tunnel prints the public URL in its logs
                         if (quickMode && !line.isNullOrBlank()) {
-                            val match = QUICK_URL_REGEX.find(line ?: "")?.value
+                            val match = extractQuickUrl(line ?: "")
                             if (match != null && match != _publicUrl.value) {
                                 _publicUrl.value = match
                                 prefs.publicUrl = match
